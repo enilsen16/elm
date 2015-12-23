@@ -6010,18 +6010,19 @@ Elm.Main.make = function (_elm) {
    if (_elm.Main.values) return _elm.Main.values;
    var _U = Elm.Native.Utils.make(_elm),
    $Basics = Elm.Basics.make(_elm),
+   $Color = Elm.Color.make(_elm),
    $Debug = Elm.Debug.make(_elm),
-   $Graphics$Element = Elm.Graphics.Element.make(_elm),
+   $Graphics$Collage = Elm.Graphics.Collage.make(_elm),
    $List = Elm.List.make(_elm),
    $Maybe = Elm.Maybe.make(_elm),
    $Result = Elm.Result.make(_elm),
    $Signal = Elm.Signal.make(_elm);
    var _op = {};
-   var greet = function (name) {
-      return A2($Basics._op["++"],
-      "Howdy, ",
-      A2($Basics._op["++"],name,"!"));
-   };
-   var main = $Graphics$Element.show(greet("Erik"));
-   return _elm.Main.values = {_op: _op,greet: greet,main: main};
+   var main = A3($Graphics$Collage.collage,
+   200,
+   200,
+   _U.list([A2($Graphics$Collage.filled,
+   $Color.blue,
+   $Graphics$Collage.square(100))]));
+   return _elm.Main.values = {_op: _op,main: main};
 };</script></head><body><script type="text/javascript">Elm.fullscreen(Elm.Main)</script></body></html>
