@@ -6017,6 +6017,11 @@ Elm.Main.make = function (_elm) {
    $Result = Elm.Result.make(_elm),
    $Signal = Elm.Signal.make(_elm);
    var _op = {};
-   var main = $Graphics$Element.show("Howdy world!");
-   return _elm.Main.values = {_op: _op,main: main};
+   var greet = function (name) {
+      return A2($Basics._op["++"],
+      "Howdy, ",
+      A2($Basics._op["++"],name,"!"));
+   };
+   var main = $Graphics$Element.show(greet("Erik"));
+   return _elm.Main.values = {_op: _op,greet: greet,main: main};
 };</script></head><body><script type="text/javascript">Elm.fullscreen(Elm.Main)</script></body></html>
