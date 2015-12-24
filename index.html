@@ -6018,11 +6018,19 @@ Elm.Main.make = function (_elm) {
    $Result = Elm.Result.make(_elm),
    $Signal = Elm.Signal.make(_elm);
    var _op = {};
+   var diamond = F2(function (color,size) {
+      return A2($Graphics$Collage.rotate,
+      $Basics.degrees(45),
+      A2($Graphics$Collage.filled,
+      color,
+      $Graphics$Collage.square(size)));
+   });
    var main = A3($Graphics$Collage.collage,
    200,
    200,
-   _U.list([A2($Graphics$Collage.filled,
-   $Color.blue,
-   $Graphics$Collage.square(100))]));
-   return _elm.Main.values = {_op: _op,main: main};
+   _U.list([A2(diamond,$Color.red,100)
+           ,A2(diamond,$Color.green,75)]));
+   return _elm.Main.values = {_op: _op
+                             ,diamond: diamond
+                             ,main: main};
 };</script></head><body><script type="text/javascript">Elm.fullscreen(Elm.Main)</script></body></html>
