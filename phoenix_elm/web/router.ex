@@ -20,7 +20,9 @@ defmodule PhoenixElm.Router do
   end
 
   # Other scopes may use custom stacks.
-  # scope "/api", PhoenixElm do
-  #   pipe_through :api
-  # end
+  scope "/api", PhoenixElm do
+    pipe_through :api
+
+    resources "/seats", SeatController, except: [:new, :edit]
+  end
 end
