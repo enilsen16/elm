@@ -1,11 +1,11 @@
-module HelloWorld4 where
+  module HelloWorld4 where
 
-import Markdown
+  import Markdown
 
-main = Markdown.toElement """
-# Hello World
+  main = Markdown.toElement """
+  # Hello World
 
-This is the output of the *HelloWorld* program.
+  This is the output of the *HelloWorld* program.
 
----
-"""
+  ---
+  """
