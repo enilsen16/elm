@@ -24,8 +24,10 @@ port tasks =
 
 type alias Seat =
   { seatNo : Int
-  , occupied : Bool
+  , status : String
   }
+
+-- type Status = Available | Pending | Occupied
 
 type alias Model =
   List Seat
@@ -42,7 +44,15 @@ seatItem : Signal.Address Action -> Seat -> Html
 seatItem address seat =
   let
     occupiedClass =
-      if seat.occupied then "occupied" else "available"
+      seat.status
+      -- if seat.occupied then "occupied" else "available"
+      -- case seat.status of
+      --   Available ->
+      --     "available"
+      --   Pending ->
+      --     "pending"
+      --   Occupied ->
+      --     "occupied"
   in
     li
       [ class ("seat " ++ occupiedClass)
@@ -59,7 +69,20 @@ update action model =
       let
         updateSeat seatFromModel =
           if seatFromModel.seatNo == seatToToggle.seatNo then
-            { seatFromModel | occupied = not seatFromModel.occupied }
+            let
+                nextStatus =
+                  case seatFromModel.status of
+                    "Pending" ->
+                      "Occupied"
+                    "Occupied" ->
+                      "Available"
+                    "Available" ->
+                      "Pending"
+                    _ ->
+                      "Invalid"
+            in
+              { seatFromModel | status = nextStatus }
+
           else seatFromModel
       in
         (List.map updateSeat model, Effects.none)

@@ -3,7 +3,7 @@ defmodule PhoenixElm.Seat do
 
   schema "seats" do
     field :seat_no, :integer
-    field :occupied, :boolean, default: false
+    field :occupied, :string, default: "Available"
 
     timestamps
   end
@@ -27,6 +27,6 @@ defimpl Poison.Encoder, for: PhoenixElm.Seat do
   def encode(model, opts) do
     %{id: model.id,
       seatNo: model.seat_no,
-      occupied: model.occupied} |> Poison.Encoder.encode(opts)
+      status: model.occupied} |> Poison.Encoder.encode(opts)
   end
 end

@@ -12,8 +12,8 @@ config :logger, level: :warn
 # Configure your database
 config :phoenix_elm, PhoenixElm.Repo,
   adapter: Ecto.Adapters.Postgres,
-  username: "postgres",
-  password: "postgres",
+  username: "eyes",
+  password: "",
   database: "phoenix_elm_test",
   hostname: "localhost",
   pool: Ecto.Adapters.SQL.Sandbox

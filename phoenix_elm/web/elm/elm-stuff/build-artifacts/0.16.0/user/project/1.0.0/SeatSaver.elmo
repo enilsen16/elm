@@ -1,0 +1,96 @@
+Elm.SeatSaver = Elm.SeatSaver || {};
+Elm.SeatSaver.make = function (_elm) {
+   "use strict";
+   _elm.SeatSaver = _elm.SeatSaver || {};
+   if (_elm.SeatSaver.values) return _elm.SeatSaver.values;
+   var _U = Elm.Native.Utils.make(_elm),
+   $Basics = Elm.Basics.make(_elm),
+   $Debug = Elm.Debug.make(_elm),
+   $Effects = Elm.Effects.make(_elm),
+   $Html = Elm.Html.make(_elm),
+   $Html$Attributes = Elm.Html.Attributes.make(_elm),
+   $Html$Events = Elm.Html.Events.make(_elm),
+   $List = Elm.List.make(_elm),
+   $Maybe = Elm.Maybe.make(_elm),
+   $Result = Elm.Result.make(_elm),
+   $Signal = Elm.Signal.make(_elm),
+   $StartApp = Elm.StartApp.make(_elm),
+   $Task = Elm.Task.make(_elm);
+   var _op = {};
+   var seatLists = Elm.Native.Port.make(_elm).inboundSignal("seatLists",
+   "SeatSaver.Model",
+   function (v) {
+      return typeof v === "object" && v instanceof Array ? Elm.Native.List.make(_elm).fromArray(v.map(function (v) {
+         return typeof v === "object" && "seatNo" in v && "status" in v ? {_: {}
+                                                                          ,seatNo: typeof v.seatNo === "number" && isFinite(v.seatNo) && Math.floor(v.seatNo) === v.seatNo ? v.seatNo : _U.badPort("an integer",
+                                                                          v.seatNo)
+                                                                          ,status: typeof v.status === "string" || typeof v.status === "object" && v.status instanceof String ? v.status : _U.badPort("a string",
+                                                                          v.status)} : _U.badPort("an object with fields `seatNo`, `status`",
+         v);
+      })) : _U.badPort("an array",v);
+   });
+   var update = F2(function (action,model) {
+      var _p0 = action;
+      if (_p0.ctor === "Toggle") {
+            var updateSeat = function (seatFromModel) {
+               if (_U.eq(seatFromModel.seatNo,_p0._0.seatNo)) {
+                     var nextStatus = function () {
+                        var _p1 = seatFromModel.status;
+                        switch (_p1)
+                        {case "Pending": return "Occupied";
+                           case "Occupied": return "Available";
+                           case "Available": return "Pending";
+                           default: return "Invalid";}
+                     }();
+                     return _U.update(seatFromModel,{status: nextStatus});
+                  } else return seatFromModel;
+            };
+            return {ctor: "_Tuple2"
+                   ,_0: A2($List.map,updateSeat,model)
+                   ,_1: $Effects.none};
+         } else {
+            return {ctor: "_Tuple2",_0: _p0._0,_1: $Effects.none};
+         }
+   });
+   var SetSeats = function (a) {
+      return {ctor: "SetSeats",_0: a};
+   };
+   var incomingActions = A2($Signal.map,SetSeats,seatLists);
+   var Toggle = function (a) {    return {ctor: "Toggle",_0: a};};
+   var seatItem = F2(function (address,seat) {
+      var occupiedClass = seat.status;
+      return A2($Html.li,
+      _U.list([$Html$Attributes.$class(A2($Basics._op["++"],
+              "seat ",
+              occupiedClass))
+              ,A2($Html$Events.onClick,address,Toggle(seat))]),
+      _U.list([$Html.text($Basics.toString(seat.seatNo))]));
+   });
+   var view = F2(function (address,model) {
+      return A2($Html.ul,
+      _U.list([$Html$Attributes.$class("seats")]),
+      A2($List.map,seatItem(address),model));
+   });
+   var init = {ctor: "_Tuple2",_0: _U.list([]),_1: $Effects.none};
+   var Seat = F2(function (a,b) {
+      return {seatNo: a,status: b};
+   });
+   var app = $StartApp.start({init: init
+                             ,update: update
+                             ,view: view
+                             ,inputs: _U.list([incomingActions])});
+   var main = app.html;
+   var tasks = Elm.Native.Task.make(_elm).performSignal("tasks",
+   app.tasks);
+   return _elm.SeatSaver.values = {_op: _op
+                                  ,app: app
+                                  ,main: main
+                                  ,Seat: Seat
+                                  ,init: init
+                                  ,view: view
+                                  ,seatItem: seatItem
+                                  ,Toggle: Toggle
+                                  ,SetSeats: SetSeats
+                                  ,update: update
+                                  ,incomingActions: incomingActions};
+};

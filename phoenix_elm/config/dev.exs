@@ -36,8 +36,8 @@ config :phoenix, :stacktrace_depth, 20
 # Configure your database
 config :phoenix_elm, PhoenixElm.Repo,
   adapter: Ecto.Adapters.Postgres,
-  username: "postgres",
-  password: "postgres",
+  username: "eyes",
+  password: "",
   database: "phoenix_elm_dev",
   hostname: "localhost",
   pool_size: 10

@@ -42,8 +42,9 @@ h2.header {
   content: url(../images/seat.png);
 }
 
-.available { background: #AAA; }
-.occupied  { background: #99cc33; }
+.Available { background: #AAA; }
+.Pending { background: yellow; }
+.Occupied  { background: #99cc33; }
 
 /* Assumes 12 seats! */
 .seat:nth-child(6n+1) { clear: both}
