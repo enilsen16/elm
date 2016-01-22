@@ -10853,8 +10853,14 @@ Elm.Bingo.make = function (_elm) {
    $List = Elm.List.make(_elm),
    $Maybe = Elm.Maybe.make(_elm),
    $Result = Elm.Result.make(_elm),
-   $Signal = Elm.Signal.make(_elm);
+   $Signal = Elm.Signal.make(_elm),
+   $String = Elm.String.make(_elm);
    var _op = {};
-   var main = $Html.text("Hello, Elm");
-   return _elm.Bingo.values = {_op: _op,main: main};
+   var title = F2(function (message,times) {
+      return $Html.text($String.trimRight(A2($String.repeat,
+      times,
+      $String.toUpper(A2($Basics._op["++"],message," ")))));
+   });
+   var main = A2(title,"Hello",4);
+   return _elm.Bingo.values = {_op: _op,title: title,main: main};
 };

@@ -1,6 +1,14 @@
-module Bingo where
+module Bingo (..) where
 
 import Html
+import String
 
-main =
-  Html.text "Hello, Elm"
+
+title message times =
+    message ++ " "
+        |> String.toUpper
+        |> String.repeat times
+        |> String.trimRight
+        |> Html.text
+
+main = title "Hello" 4
