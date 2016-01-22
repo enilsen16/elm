@@ -7,6 +7,7 @@ import Signal exposing (map, sampleOn)
 import Text exposing (fromString)
 
 
+
 showsignals a b c d e f g =
     flow down
         <| List.map
@@ -25,11 +26,12 @@ andMap =
     Signal.map2 (<|)
 
 
+merge : List (Signal a) -> Signal a
+merge : List (Signal Action) -> Signal Action
+
+type Action = Update | Noop
+
 main =
-    map showsignals Mouse.position
-        `andMap` Mouse.x
-        `andMap` Mouse.y
-        `andMap` Mouse.clicks
-        `andMap` Mouse.isDown
-        `andMap` (sampleOn Mouse.clicks Mouse.position)
-        `andMap` (sampleOn Mouse.isDown Mouse.position)
+    map showsignals
+      [ Mouse.position
+      ]
