@@ -1,12 +1,13 @@
 module Main (..) where
 
-import StartApp
-import Html exposing (..)
-import Html.Attributes exposing (..)
-import Html.Events exposing (onKeyPress, on, targetValue, targetChecked, onClick)
 import Effects exposing (Effects)
+import Html exposing (..)
+import Html.Attributes exposing (class, autofocus, placeholder, classList, checked, href, rel, type', value)
+import Html.Events exposing (onKeyPress, on, targetValue, targetChecked, onClick)
 import Json.Decode exposing ((:=))
+import Json.Decode.Pipeline exposing (decode, required)
 import Json.Encode
+import StartApp
 import Task
 
 
@@ -367,22 +368,20 @@ decodeModel modelJson =
 
 modelDecoder : Json.Decode.Decoder Model
 modelDecoder =
-  Json.Decode.object4
-    Model
-    ("todos" := Json.Decode.list todoDecoder)
-    ("todo" := todoDecoder)
-    ("filter" := filterStateDecoder)
-    ("nextIdentifier" := Json.Decode.int)
+  decode Model
+    |> required "todos" (Json.Decode.list todoDecoder)
+    |> required "todo" todoDecoder
+    |> required "filter" filterStateDecoder
+    |> required "nextIdentifier" Json.Decode.int
 
 
 todoDecoder : Json.Decode.Decoder Todo
 todoDecoder =
-  Json.Decode.object4
-    Todo
-    ("title" := Json.Decode.string)
-    ("completed" := Json.Decode.bool)
-    ("editing" := Json.Decode.bool)
-    ("identifier" := Json.Decode.int)
+  decode Todo
+    |> required "title" Json.Decode.string
+    |> required "completed" Json.Decode.bool
+    |> required "editing" Json.Decode.bool
+    |> required "identifier" Json.Decode.int
 
 
 filterStateDecoder : Json.Decode.Decoder FilterState
