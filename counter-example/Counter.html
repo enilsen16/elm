@@ -8,15 +8,25 @@
     <script type="text/javascript" src="elm.js"></script>
     <script>
         var currentModel = localStorage.getItem("counter");
-        var app = Elm.fullscreen(Elm.Counter, {
-            jsActions: 0,
-            storageInput: {
-                count: 0,
-                increment: 0,
-                decrement: 0
-            }
-        });
-        app.ports.storageInput.send(JSON.parse(currentModel));
+        if (currentModel !== null) {
+            console.log(currentModel);
+            var app = Elm.fullscreen(Elm.Counter, {
+                jsActions: 0,
+                storageInput: JSON.parse(currentModel)
+            })
+            console.log(app);
+            app.ports.storageInput.send(JSON.parse(currentModel));
+        } else {
+            localStorage.clear()
+            var app = Elm.fullscreen(Elm.Counter, {
+                jsActions: 0,
+                storageInput: {
+                    count: 0,
+                    increment: 0,
+                    decrement: 0
+                }
+            });
+        }
         window.app = app;
         var incrementClickCount = 0;
         app.ports.increment.subscribe(function() {
