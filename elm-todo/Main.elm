@@ -1,9 +1,13 @@
 module Main (..) where
 
-import StartApp.Simple exposing (start)
+import StartApp
 import Html exposing (..)
 import Html.Attributes exposing (..)
 import Html.Events exposing (onKeyPress, on, targetValue, targetChecked, onClick)
+import Effects exposing (Effects)
+import Json.Decode exposing ((:=))
+import Json.Encode
+import Task
 
 
 type alias Todo =
@@ -41,6 +45,7 @@ type Action
   | Delete Todo
   | UpdateTitle String
   | Filter FilterState
+  | SetModel Model
 
 
 filterItemView : Signal.Address Action -> Model -> FilterState -> Html
@@ -73,18 +78,32 @@ filteredTodos model =
     List.filter matchesFilter model.todos
 
 
-update : Action -> Model -> Model
+update : Action -> Model -> ( Model, Effects Action )
 update action model =
   case action of
     Add ->
-      { model
-        | todos = model.todo :: model.todos
-        , todo = { newTodo | identifier = model.nextIdentifier }
-        , nextIdentifier = model.nextIdentifier + 1
-      }
+      let
+        newModel =
+          { model
+            | todos = model.todo :: model.todos
+            , todo = { newTodo | identifier = model.nextIdentifier }
+            , nextIdentifier = model.nextIdentifier + 1
+          }
+      in
+        ( newModel
+        , sendToStorageMailbox newModel
+        )
 
     Clear ->
-      { model | todos = List.filter (\todo -> todo.completed == False) model.todos }
+      let
+        newModel =
+          { model
+            | todos = List.filter (\todo -> todo.completed == False) model.todos
+          }
+      in
+        ( newModel
+        , sendToStorageMailbox newModel
+        )
 
     Complete todo ->
       let
@@ -93,10 +112,15 @@ update action model =
             { todo | completed = True }
           else
             thisTodo
+
+        newModel =
+          { model
+            | todos = List.map updateTodo model.todos
+          }
       in
-        { model
-          | todos = List.map updateTodo model.todos
-        }
+        ( newModel
+        , sendToStorageMailbox newModel
+        )
 
     Uncomplete todo ->
       let
@@ -105,16 +129,35 @@ update action model =
             { todo | completed = False }
           else
             thisTodo
+
+        newModel =
+          { model
+            | todos = List.map updateTodo model.todos
+          }
       in
-        { model
-          | todos = List.map updateTodo model.todos
-        }
+        ( newModel
+        , sendToStorageMailbox newModel
+        )
 
     Delete todo ->
-      { model | todos = List.filter (\mappedTodo -> todo.identifier /= mappedTodo.identifier) model.todos }
+      let
+        newModel =
+          { model
+            | todos = List.filter (\mappedTodo -> todo.identifier /= mappedTodo.identifier) model.todos
+          }
+      in
+        ( newModel
+        , sendToStorageMailbox newModel
+        )
 
     Filter filterState ->
-      { model | filter = filterState }
+      let
+        newModel =
+          { model | filter = filterState }
+      in
+        ( newModel
+        , sendToStorageMailbox newModel
+        )
 
     UpdateTitle str ->
       let
@@ -124,10 +167,19 @@ update action model =
         updatedTodo =
           { todo | title = str }
       in
-        { model | todo = updatedTodo }
+        ( { model | todo = updatedTodo }
+        , Effects.none
+        )
+
+    SetModel model ->
+      ( model
+      , Effects.none
+      )
 
     NoOp ->
-      model
+      ( model
+      , Effects.none
+      )
 
 
 css : String -> Html
@@ -250,9 +302,137 @@ initialModel =
   }
 
 
-main =
-  StartApp.Simple.start
-    { model = initialModel
+app =
+  StartApp.start
+    { init = ( initialModel, Effects.none )
     , update = update
     , view = view
+    , inputs =
+        [ Signal.map mapStorageInput storageInput
+        ]
     }
+
+
+main =
+  app.html
+
+
+encodeJson : Model -> Json.Encode.Value
+encodeJson model =
+  Json.Encode.object
+    [ ( "todos", Json.Encode.list (List.map encodeTodo model.todos) )
+    , ( "todo", encodeTodo model.todo )
+    , ( "filter", encodeFilterState model.filter )
+    , ( "nextIdentifier", Json.Encode.int model.nextIdentifier )
+    ]
+
+
+encodeTodo : Todo -> Json.Encode.Value
+encodeTodo todo =
+  Json.Encode.object
+    [ ( "title", Json.Encode.string todo.title )
+    , ( "completed", Json.Encode.bool todo.completed )
+    , ( "editing", Json.Encode.bool todo.editing )
+    , ( "identifier", Json.Encode.int todo.identifier )
+    ]
+
+
+encodeFilterState : FilterState -> Json.Encode.Value
+encodeFilterState filterState =
+  case filterState of
+    All ->
+      Json.Encode.string "All"
+
+    Active ->
+      Json.Encode.string "Active"
+
+    Completed ->
+      Json.Encode.string "Completed"
+
+
+mapStorageInput : Json.Decode.Value -> Action
+mapStorageInput modelJson =
+  case (decodeModel modelJson) of
+    Ok model ->
+      SetModel model
+
+    _ ->
+      NoOp
+
+
+decodeModel : Json.Decode.Value -> Result String Model
+decodeModel modelJson =
+  Json.Decode.decodeValue modelDecoder modelJson
+
+
+modelDecoder : Json.Decode.Decoder Model
+modelDecoder =
+  Json.Decode.object4
+    Model
+    ("todos" := Json.Decode.list todoDecoder)
+    ("todo" := todoDecoder)
+    ("filter" := filterStateDecoder)
+    ("nextIdentifier" := Json.Decode.int)
+
+
+todoDecoder : Json.Decode.Decoder Todo
+todoDecoder =
+  Json.Decode.object4
+    Todo
+    ("title" := Json.Decode.string)
+    ("completed" := Json.Decode.bool)
+    ("editing" := Json.Decode.bool)
+    ("identifier" := Json.Decode.int)
+
+
+filterStateDecoder : Json.Decode.Decoder FilterState
+filterStateDecoder =
+  let
+    decodeToFilterState string =
+      case string of
+        "All" ->
+          Result.Ok All
+
+        "Active" ->
+          Result.Ok Active
+
+        "Completed" ->
+          Result.Ok Completed
+
+        _ ->
+          Result.Err ("Not a vaild FilterState: " ++ string)
+  in
+    Json.Decode.customDecoder Json.Decode.string decodeToFilterState
+
+
+storageMailbox : Signal.Mailbox Json.Encode.Value
+storageMailbox =
+  Signal.mailbox (encodeJson initialModel)
+
+
+sendToStorageMailbox : Model -> Effects Action
+sendToStorageMailbox model =
+  Signal.send storageMailbox.address (encodeJson model)
+    |> Effects.task
+    |> Effects.map (always NoOp)
+
+
+
+-- Input
+
+
+port storageInput : Signal Json.Decode.Value
+
+
+
+-- Output
+
+
+port storage : Signal Json.Encode.Value
+port storage =
+  storageMailbox.signal
+
+
+port tasks : Signal (Task.Task Effects.Never ())
+port tasks =
+  app.tasks

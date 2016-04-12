@@ -10639,6 +10639,310 @@ Elm.Html.Events.make = function (_elm) {
                                     ,keyCode: keyCode
                                     ,Options: Options};
 };
+Elm.Native.Http = {};
+Elm.Native.Http.make = function(localRuntime) {
+
+	localRuntime.Native = localRuntime.Native || {};
+	localRuntime.Native.Http = localRuntime.Native.Http || {};
+	if (localRuntime.Native.Http.values)
+	{
+		return localRuntime.Native.Http.values;
+	}
+
+	var Dict = Elm.Dict.make(localRuntime);
+	var List = Elm.List.make(localRuntime);
+	var Maybe = Elm.Maybe.make(localRuntime);
+	var Task = Elm.Native.Task.make(localRuntime);
+
+
+	function send(settings, request)
+	{
+		return Task.asyncFunction(function(callback) {
+			var req = new XMLHttpRequest();
+
+			// start
+			if (settings.onStart.ctor === 'Just')
+			{
+				req.addEventListener('loadStart', function() {
+					var task = settings.onStart._0;
+					Task.spawn(task);
+				});
+			}
+
+			// progress
+			if (settings.onProgress.ctor === 'Just')
+			{
+				req.addEventListener('progress', function(event) {
+					var progress = !event.lengthComputable
+						? Maybe.Nothing
+						: Maybe.Just({
+							_: {},
+							loaded: event.loaded,
+							total: event.total
+						});
+					var task = settings.onProgress._0(progress);
+					Task.spawn(task);
+				});
+			}
+
+			// end
+			req.addEventListener('error', function() {
+				return callback(Task.fail({ ctor: 'RawNetworkError' }));
+			});
+
+			req.addEventListener('timeout', function() {
+				return callback(Task.fail({ ctor: 'RawTimeout' }));
+			});
+
+			req.addEventListener('load', function() {
+				return callback(Task.succeed(toResponse(req)));
+			});
+
+			req.open(request.verb, request.url, true);
+
+			// set all the headers
+			function setHeader(pair) {
+				req.setRequestHeader(pair._0, pair._1);
+			}
+			A2(List.map, setHeader, request.headers);
+
+			// set the timeout
+			req.timeout = settings.timeout;
+
+			// enable this withCredentials thing
+			req.withCredentials = settings.withCredentials;
+
+			// ask for a specific MIME type for the response
+			if (settings.desiredResponseType.ctor === 'Just')
+			{
+				req.overrideMimeType(settings.desiredResponseType._0);
+			}
+
+			// actuall send the request
+			if(request.body.ctor === "BodyFormData")
+			{
+				req.send(request.body.formData)
+			}
+			else
+			{
+				req.send(request.body._0);
+			}
+		});
+	}
+
+
+	// deal with responses
+
+	function toResponse(req)
+	{
+		var tag = req.responseType === 'blob' ? 'Blob' : 'Text'
+		var response = tag === 'Blob' ? req.response : req.responseText;
+		return {
+			_: {},
+			status: req.status,
+			statusText: req.statusText,
+			headers: parseHeaders(req.getAllResponseHeaders()),
+			url: req.responseURL,
+			value: { ctor: tag, _0: response }
+		};
+	}
+
+
+	function parseHeaders(rawHeaders)
+	{
+		var headers = Dict.empty;
+
+		if (!rawHeaders)
+		{
+			return headers;
+		}
+
+		var headerPairs = rawHeaders.split('\u000d\u000a');
+		for (var i = headerPairs.length; i--; )
+		{
+			var headerPair = headerPairs[i];
+			var index = headerPair.indexOf('\u003a\u0020');
+			if (index > 0)
+			{
+				var key = headerPair.substring(0, index);
+				var value = headerPair.substring(index + 2);
+
+				headers = A3(Dict.update, key, function(oldValue) {
+					if (oldValue.ctor === 'Just')
+					{
+						return Maybe.Just(value + ', ' + oldValue._0);
+					}
+					return Maybe.Just(value);
+				}, headers);
+			}
+		}
+
+		return headers;
+	}
+
+
+	function multipart(dataList)
+	{
+		var formData = new FormData();
+
+		while (dataList.ctor !== '[]')
+		{
+			var data = dataList._0;
+			if (data.ctor === 'StringData')
+			{
+				formData.append(data._0, data._1);
+			}
+			else
+			{
+				var fileName = data._1.ctor === 'Nothing'
+					? undefined
+					: data._1._0;
+				formData.append(data._0, data._2, fileName);
+			}
+			dataList = dataList._1;
+		}
+
+		return { ctor: 'BodyFormData', formData: formData };
+	}
+
+
+	function uriEncode(string)
+	{
+		return encodeURIComponent(string);
+	}
+
+	function uriDecode(string)
+	{
+		return decodeURIComponent(string);
+	}
+
+	return localRuntime.Native.Http.values = {
+		send: F2(send),
+		multipart: multipart,
+		uriEncode: uriEncode,
+		uriDecode: uriDecode
+	};
+};
+
+Elm.Http = Elm.Http || {};
+Elm.Http.make = function (_elm) {
+   "use strict";
+   _elm.Http = _elm.Http || {};
+   if (_elm.Http.values) return _elm.Http.values;
+   var _U = Elm.Native.Utils.make(_elm),
+   $Basics = Elm.Basics.make(_elm),
+   $Debug = Elm.Debug.make(_elm),
+   $Dict = Elm.Dict.make(_elm),
+   $Json$Decode = Elm.Json.Decode.make(_elm),
+   $List = Elm.List.make(_elm),
+   $Maybe = Elm.Maybe.make(_elm),
+   $Native$Http = Elm.Native.Http.make(_elm),
+   $Result = Elm.Result.make(_elm),
+   $Signal = Elm.Signal.make(_elm),
+   $String = Elm.String.make(_elm),
+   $Task = Elm.Task.make(_elm),
+   $Time = Elm.Time.make(_elm);
+   var _op = {};
+   var send = $Native$Http.send;
+   var BadResponse = F2(function (a,b) {    return {ctor: "BadResponse",_0: a,_1: b};});
+   var UnexpectedPayload = function (a) {    return {ctor: "UnexpectedPayload",_0: a};};
+   var handleResponse = F2(function (handle,response) {
+      if (_U.cmp(200,response.status) < 1 && _U.cmp(response.status,300) < 0) {
+            var _p0 = response.value;
+            if (_p0.ctor === "Text") {
+                  return handle(_p0._0);
+               } else {
+                  return $Task.fail(UnexpectedPayload("Response body is a blob, expecting a string."));
+               }
+         } else return $Task.fail(A2(BadResponse,response.status,response.statusText));
+   });
+   var NetworkError = {ctor: "NetworkError"};
+   var Timeout = {ctor: "Timeout"};
+   var promoteError = function (rawError) {    var _p1 = rawError;if (_p1.ctor === "RawTimeout") {    return Timeout;} else {    return NetworkError;}};
+   var fromJson = F2(function (decoder,response) {
+      var decode = function (str) {
+         var _p2 = A2($Json$Decode.decodeString,decoder,str);
+         if (_p2.ctor === "Ok") {
+               return $Task.succeed(_p2._0);
+            } else {
+               return $Task.fail(UnexpectedPayload(_p2._0));
+            }
+      };
+      return A2($Task.andThen,A2($Task.mapError,promoteError,response),handleResponse(decode));
+   });
+   var RawNetworkError = {ctor: "RawNetworkError"};
+   var RawTimeout = {ctor: "RawTimeout"};
+   var Blob = function (a) {    return {ctor: "Blob",_0: a};};
+   var Text = function (a) {    return {ctor: "Text",_0: a};};
+   var Response = F5(function (a,b,c,d,e) {    return {status: a,statusText: b,headers: c,url: d,value: e};});
+   var defaultSettings = {timeout: 0,onStart: $Maybe.Nothing,onProgress: $Maybe.Nothing,desiredResponseType: $Maybe.Nothing,withCredentials: false};
+   var post = F3(function (decoder,url,body) {
+      var request = {verb: "POST",headers: _U.list([]),url: url,body: body};
+      return A2(fromJson,decoder,A2(send,defaultSettings,request));
+   });
+   var Settings = F5(function (a,b,c,d,e) {    return {timeout: a,onStart: b,onProgress: c,desiredResponseType: d,withCredentials: e};});
+   var multipart = $Native$Http.multipart;
+   var FileData = F3(function (a,b,c) {    return {ctor: "FileData",_0: a,_1: b,_2: c};});
+   var BlobData = F3(function (a,b,c) {    return {ctor: "BlobData",_0: a,_1: b,_2: c};});
+   var blobData = BlobData;
+   var StringData = F2(function (a,b) {    return {ctor: "StringData",_0: a,_1: b};});
+   var stringData = StringData;
+   var BodyBlob = function (a) {    return {ctor: "BodyBlob",_0: a};};
+   var BodyFormData = {ctor: "BodyFormData"};
+   var ArrayBuffer = {ctor: "ArrayBuffer"};
+   var BodyString = function (a) {    return {ctor: "BodyString",_0: a};};
+   var string = BodyString;
+   var Empty = {ctor: "Empty"};
+   var empty = Empty;
+   var getString = function (url) {
+      var request = {verb: "GET",headers: _U.list([]),url: url,body: empty};
+      return A2($Task.andThen,A2($Task.mapError,promoteError,A2(send,defaultSettings,request)),handleResponse($Task.succeed));
+   };
+   var get = F2(function (decoder,url) {
+      var request = {verb: "GET",headers: _U.list([]),url: url,body: empty};
+      return A2(fromJson,decoder,A2(send,defaultSettings,request));
+   });
+   var Request = F4(function (a,b,c,d) {    return {verb: a,headers: b,url: c,body: d};});
+   var uriDecode = $Native$Http.uriDecode;
+   var uriEncode = $Native$Http.uriEncode;
+   var queryEscape = function (string) {    return A2($String.join,"+",A2($String.split,"%20",uriEncode(string)));};
+   var queryPair = function (_p3) {    var _p4 = _p3;return A2($Basics._op["++"],queryEscape(_p4._0),A2($Basics._op["++"],"=",queryEscape(_p4._1)));};
+   var url = F2(function (baseUrl,args) {
+      var _p5 = args;
+      if (_p5.ctor === "[]") {
+            return baseUrl;
+         } else {
+            return A2($Basics._op["++"],baseUrl,A2($Basics._op["++"],"?",A2($String.join,"&",A2($List.map,queryPair,args))));
+         }
+   });
+   var TODO_implement_file_in_another_library = {ctor: "TODO_implement_file_in_another_library"};
+   var TODO_implement_blob_in_another_library = {ctor: "TODO_implement_blob_in_another_library"};
+   return _elm.Http.values = {_op: _op
+                             ,getString: getString
+                             ,get: get
+                             ,post: post
+                             ,send: send
+                             ,url: url
+                             ,uriEncode: uriEncode
+                             ,uriDecode: uriDecode
+                             ,empty: empty
+                             ,string: string
+                             ,multipart: multipart
+                             ,stringData: stringData
+                             ,defaultSettings: defaultSettings
+                             ,fromJson: fromJson
+                             ,Request: Request
+                             ,Settings: Settings
+                             ,Response: Response
+                             ,Text: Text
+                             ,Blob: Blob
+                             ,Timeout: Timeout
+                             ,NetworkError: NetworkError
+                             ,UnexpectedPayload: UnexpectedPayload
+                             ,BadResponse: BadResponse
+                             ,RawTimeout: RawTimeout
+                             ,RawNetworkError: RawNetworkError};
+};
 Elm.StartApp = Elm.StartApp || {};
 Elm.StartApp.make = function (_elm) {
    "use strict";
@@ -10678,6 +10982,123 @@ Elm.StartApp.make = function (_elm) {
    var Config = F4(function (a,b,c,d) {    return {init: a,update: b,view: c,inputs: d};});
    return _elm.StartApp.values = {_op: _op,start: start,Config: Config,App: App};
 };
+Elm.RandomGif = Elm.RandomGif || {};
+Elm.RandomGif.make = function (_elm) {
+   "use strict";
+   _elm.RandomGif = _elm.RandomGif || {};
+   if (_elm.RandomGif.values) return _elm.RandomGif.values;
+   var _U = Elm.Native.Utils.make(_elm),
+   $Basics = Elm.Basics.make(_elm),
+   $Debug = Elm.Debug.make(_elm),
+   $Effects = Elm.Effects.make(_elm),
+   $Html = Elm.Html.make(_elm),
+   $Html$Attributes = Elm.Html.Attributes.make(_elm),
+   $Html$Events = Elm.Html.Events.make(_elm),
+   $Http = Elm.Http.make(_elm),
+   $Json$Decode = Elm.Json.Decode.make(_elm),
+   $List = Elm.List.make(_elm),
+   $Maybe = Elm.Maybe.make(_elm),
+   $Result = Elm.Result.make(_elm),
+   $Signal = Elm.Signal.make(_elm),
+   $Task = Elm.Task.make(_elm);
+   var _op = {};
+   var decodeUrl = A2($Json$Decode.at,_U.list(["data","image_url"]),$Json$Decode.string);
+   _op["=>"] = F2(function (v0,v1) {    return {ctor: "_Tuple2",_0: v0,_1: v1};});
+   var headerStyle = $Html$Attributes.style(_U.list([A2(_op["=>"],"width","200px"),A2(_op["=>"],"text-align","center")]));
+   var imgStyle = function (url) {
+      return $Html$Attributes.style(_U.list([A2(_op["=>"],"display","inline-block")
+                                            ,A2(_op["=>"],"width","200px")
+                                            ,A2(_op["=>"],"height","200px")
+                                            ,A2(_op["=>"],"background-position","center center")
+                                            ,A2(_op["=>"],"background-size","cover")
+                                            ,A2(_op["=>"],"background-image",A2($Basics._op["++"],"url(\'",A2($Basics._op["++"],url,"\')")))]));
+   };
+   var randomUrl = function (topic) {
+      return A2($Http.url,"http://api.giphy.com/v1/gifs/random",_U.list([A2(_op["=>"],"api_key","dc6zaTOxFJmzC"),A2(_op["=>"],"tag",topic)]));
+   };
+   var NewGif = function (a) {    return {ctor: "NewGif",_0: a};};
+   var getRandomGif = function (topic) {    return $Effects.task(A2($Task.map,NewGif,$Task.toMaybe(A2($Http.get,decodeUrl,randomUrl(topic)))));};
+   var RequestMore = {ctor: "RequestMore"};
+   var view = F2(function (address,model) {
+      return A2($Html.div,
+      _U.list([$Html$Attributes.style(_U.list([A2(_op["=>"],"width","200px")]))]),
+      _U.list([A2($Html.h2,_U.list([headerStyle]),_U.list([$Html.text(model.topic)]))
+              ,A2($Html.div,_U.list([imgStyle(model.gifUrl)]),_U.list([]))
+              ,A2($Html.button,_U.list([A2($Html$Events.onClick,address,RequestMore)]),_U.list([$Html.text("More please!")]))]));
+   });
+   var Model = F2(function (a,b) {    return {topic: a,gifUrl: b};});
+   var init = function (topic) {    return {ctor: "_Tuple2",_0: A2(Model,topic,"assets/waiting.gif"),_1: getRandomGif(topic)};};
+   var update = F2(function (action,model) {
+      var _p0 = action;
+      if (_p0.ctor === "RequestMore") {
+            return {ctor: "_Tuple2",_0: model,_1: getRandomGif(model.topic)};
+         } else {
+            return {ctor: "_Tuple2",_0: A2(Model,model.topic,A2($Maybe.withDefault,model.gifUrl,_p0._0)),_1: $Effects.none};
+         }
+   });
+   return _elm.RandomGif.values = {_op: _op
+                                  ,Model: Model
+                                  ,init: init
+                                  ,RequestMore: RequestMore
+                                  ,NewGif: NewGif
+                                  ,update: update
+                                  ,view: view
+                                  ,headerStyle: headerStyle
+                                  ,imgStyle: imgStyle
+                                  ,getRandomGif: getRandomGif
+                                  ,randomUrl: randomUrl
+                                  ,decodeUrl: decodeUrl};
+};
+Elm.RandomGifPair = Elm.RandomGifPair || {};
+Elm.RandomGifPair.make = function (_elm) {
+   "use strict";
+   _elm.RandomGifPair = _elm.RandomGifPair || {};
+   if (_elm.RandomGifPair.values) return _elm.RandomGifPair.values;
+   var _U = Elm.Native.Utils.make(_elm),
+   $Basics = Elm.Basics.make(_elm),
+   $Debug = Elm.Debug.make(_elm),
+   $Effects = Elm.Effects.make(_elm),
+   $Html = Elm.Html.make(_elm),
+   $Html$Attributes = Elm.Html.Attributes.make(_elm),
+   $List = Elm.List.make(_elm),
+   $Maybe = Elm.Maybe.make(_elm),
+   $RandomGif = Elm.RandomGif.make(_elm),
+   $Result = Elm.Result.make(_elm),
+   $Signal = Elm.Signal.make(_elm);
+   var _op = {};
+   var Right = function (a) {    return {ctor: "Right",_0: a};};
+   var Left = function (a) {    return {ctor: "Left",_0: a};};
+   var init = F2(function (leftTopic,rightTopic) {
+      var _p0 = $RandomGif.init(rightTopic);
+      var right = _p0._0;
+      var rightFx = _p0._1;
+      var _p1 = $RandomGif.init(leftTopic);
+      var left = _p1._0;
+      var leftFx = _p1._1;
+      return {ctor: "_Tuple2",_0: {left: left,right: right},_1: $Effects.batch(_U.list([A2($Effects.map,Left,leftFx),A2($Effects.map,Right,rightFx)]))};
+   });
+   var update = F2(function (action,model) {
+      var _p2 = action;
+      if (_p2.ctor === "Left") {
+            var _p3 = A2($RandomGif.update,_p2._0,model.left);
+            var left = _p3._0;
+            var fx = _p3._1;
+            return {ctor: "_Tuple2",_0: _U.update(model,{left: left}),_1: A2($Effects.map,Left,fx)};
+         } else {
+            var _p4 = A2($RandomGif.update,_p2._0,model.right);
+            var right = _p4._0;
+            var fx = _p4._1;
+            return {ctor: "_Tuple2",_0: _U.update(model,{right: right}),_1: A2($Effects.map,Right,fx)};
+         }
+   });
+   var view = F2(function (address,model) {
+      return A2($Html.div,
+      _U.list([$Html$Attributes.style(_U.list([{ctor: "_Tuple2",_0: "display",_1: "flex"}]))]),
+      _U.list([A2($RandomGif.view,A2($Signal.forwardTo,address,Left),model.left),A2($RandomGif.view,A2($Signal.forwardTo,address,Right),model.right)]));
+   });
+   var Model = F2(function (a,b) {    return {left: a,right: b};});
+   return _elm.RandomGifPair.values = {_op: _op,Model: Model,Left: Left,Right: Right,init: init,update: update,view: view};
+};
 Elm.Main = Elm.Main || {};
 Elm.Main.make = function (_elm) {
    "use strict";
@@ -10687,264 +11108,19 @@ Elm.Main.make = function (_elm) {
    $Basics = Elm.Basics.make(_elm),
    $Debug = Elm.Debug.make(_elm),
    $Effects = Elm.Effects.make(_elm),
-   $Html = Elm.Html.make(_elm),
-   $Html$Attributes = Elm.Html.Attributes.make(_elm),
-   $Html$Events = Elm.Html.Events.make(_elm),
-   $Json$Decode = Elm.Json.Decode.make(_elm),
-   $Json$Encode = Elm.Json.Encode.make(_elm),
    $List = Elm.List.make(_elm),
    $Maybe = Elm.Maybe.make(_elm),
+   $RandomGifPair = Elm.RandomGifPair.make(_elm),
    $Result = Elm.Result.make(_elm),
    $Signal = Elm.Signal.make(_elm),
    $StartApp = Elm.StartApp.make(_elm),
    $Task = Elm.Task.make(_elm);
    var _op = {};
-   var storageInput = Elm.Native.Port.make(_elm).inboundSignal("storageInput","Json.Decode.Value",function (v) {    return v;});
-   var encodeFilterState = function (filterState) {
-      var _p0 = filterState;
-      switch (_p0.ctor)
-      {case "All": return $Json$Encode.string("All");
-         case "Active": return $Json$Encode.string("Active");
-         default: return $Json$Encode.string("Completed");}
-   };
-   var encodeTodo = function (todo) {
-      return $Json$Encode.object(_U.list([{ctor: "_Tuple2",_0: "title",_1: $Json$Encode.string(todo.title)}
-                                         ,{ctor: "_Tuple2",_0: "completed",_1: $Json$Encode.bool(todo.completed)}
-                                         ,{ctor: "_Tuple2",_0: "editing",_1: $Json$Encode.bool(todo.editing)}
-                                         ,{ctor: "_Tuple2",_0: "identifier",_1: $Json$Encode.$int(todo.identifier)}]));
-   };
-   var encodeJson = function (model) {
-      return $Json$Encode.object(_U.list([{ctor: "_Tuple2",_0: "todos",_1: $Json$Encode.list(A2($List.map,encodeTodo,model.todos))}
-                                         ,{ctor: "_Tuple2",_0: "todo",_1: encodeTodo(model.todo)}
-                                         ,{ctor: "_Tuple2",_0: "filter",_1: encodeFilterState(model.filter)}
-                                         ,{ctor: "_Tuple2",_0: "nextIdentifier",_1: $Json$Encode.$int(model.nextIdentifier)}]));
-   };
-   var newTodo = {title: "",completed: false,editing: false,identifier: 0};
-   var css = function (path) {    return A3($Html.node,"link",_U.list([$Html$Attributes.rel("stylesheet"),$Html$Attributes.href(path)]),_U.list([]));};
-   var filteredTodos = function (model) {
-      var matchesFilter = function () {
-         var _p1 = model.filter;
-         switch (_p1.ctor)
-         {case "All": return function (_p2) {
-                 return true;
-              };
-            case "Active": return function (todo) {
-                 return _U.eq(todo.completed,false);
-              };
-            default: return function (todo) {
-                 return _U.eq(todo.completed,true);
-              };}
-      }();
-      return A2($List.filter,matchesFilter,model.todos);
-   };
-   var SetModel = function (a) {    return {ctor: "SetModel",_0: a};};
-   var Filter = function (a) {    return {ctor: "Filter",_0: a};};
-   var filterItemView = F3(function (address,model,filterState) {
-      return A2($Html.li,
-      _U.list([]),
-      _U.list([A2($Html.a,
-      _U.list([$Html$Attributes.classList(_U.list([{ctor: "_Tuple2",_0: "selected",_1: _U.eq(model.filter,filterState)}]))
-              ,$Html$Attributes.href("#")
-              ,A2($Html$Events.onClick,address,Filter(filterState))]),
-      _U.list([$Html.text($Basics.toString(filterState))]))]));
-   });
-   var UpdateTitle = function (a) {    return {ctor: "UpdateTitle",_0: a};};
-   var Delete = function (a) {    return {ctor: "Delete",_0: a};};
-   var Uncomplete = function (a) {    return {ctor: "Uncomplete",_0: a};};
-   var Complete = function (a) {    return {ctor: "Complete",_0: a};};
-   var todoView = F2(function (address,todo) {
-      var updateCompleted = function () {
-         var _p3 = todo.completed;
-         if (_p3 === true) {
-               return function (bool) {
-                  return A2($Signal.message,address,Uncomplete(todo));
-               };
-            } else {
-               return function (bool) {
-                  return A2($Signal.message,address,Complete(todo));
-               };
-            }
-      }();
-      return A2($Html.li,
-      _U.list([$Html$Attributes.classList(_U.list([{ctor: "_Tuple2",_0: "completed",_1: todo.completed}]))]),
-      _U.list([A2($Html.div,
-      _U.list([$Html$Attributes.$class("view")]),
-      _U.list([A2($Html.input,
-              _U.list([$Html$Attributes.$class("toggle")
-                      ,$Html$Attributes.type$("checkbox")
-                      ,$Html$Attributes.checked(todo.completed)
-                      ,A3($Html$Events.on,"change",$Html$Events.targetChecked,updateCompleted)]),
-              _U.list([]))
-              ,A2($Html.label,_U.list([]),_U.list([$Html.text(todo.title)]))
-              ,A2($Html.button,_U.list([$Html$Attributes.$class("destroy"),A2($Html$Events.onClick,address,Delete(todo))]),_U.list([]))]))]));
-   });
-   var Clear = {ctor: "Clear"};
-   var Add = {ctor: "Add"};
-   var NoOp = {ctor: "NoOp"};
-   var handleKeyPress = function (code) {    var _p4 = code;if (_p4 === 13) {    return Add;} else {    return NoOp;}};
-   var Model = F4(function (a,b,c,d) {    return {todos: a,todo: b,filter: c,nextIdentifier: d};});
-   var Completed = {ctor: "Completed"};
-   var Active = {ctor: "Active"};
-   var All = {ctor: "All"};
-   var view = F2(function (address,model) {
-      return A2($Html.div,
-      _U.list([]),
-      _U.list([css("style.css")
-              ,A2($Html.section,
-              _U.list([$Html$Attributes.$class("todoapp")]),
-              _U.list([A2($Html.header,
-                      _U.list([$Html$Attributes.$class("header")]),
-                      _U.list([A2($Html.h1,_U.list([]),_U.list([$Html.text("todos")]))
-                              ,A2($Html.input,
-                              _U.list([$Html$Attributes.$class("new-todo")
-                                      ,$Html$Attributes.placeholder("What needs to be done?")
-                                      ,$Html$Attributes.value(model.todo.title)
-                                      ,$Html$Attributes.autofocus(true)
-                                      ,A2($Html$Events.onKeyPress,address,handleKeyPress)
-                                      ,A3($Html$Events.on,
-                                      "input",
-                                      $Html$Events.targetValue,
-                                      function (str) {
-                                         return A2($Signal.message,address,UpdateTitle(str));
-                                      })]),
-                              _U.list([]))]))
-                      ,A2($Html.section,
-                      _U.list([$Html$Attributes.$class("main")]),
-                      _U.list([A2($Html.ul,_U.list([$Html$Attributes.$class("todo-list")]),A2($List.map,todoView(address),filteredTodos(model)))]))
-                      ,A2($Html.footer,
-                      _U.list([$Html$Attributes.$class("footer")]),
-                      _U.list([A2($Html.span,
-                              _U.list([$Html$Attributes.$class("todo-count")]),
-                              _U.list([A2($Html.strong,
-                                      _U.list([]),
-                                      _U.list([$Html.text($Basics.toString($List.length(A2($List.filter,
-                                      function (todo) {
-                                         return _U.eq(todo.completed,false);
-                                      },
-                                      model.todos))))]))
-                                      ,$Html.text(" items left")]))
-                              ,A2($Html.ul,
-                              _U.list([$Html$Attributes.$class("filters")]),
-                              _U.list([A3(filterItemView,address,model,All)
-                                      ,A3(filterItemView,address,model,Active)
-                                      ,A3(filterItemView,address,model,Completed)]))
-                              ,A2($Html.button,
-                              _U.list([$Html$Attributes.$class("clear-completed"),A2($Html$Events.onClick,address,Clear)]),
-                              _U.list([$Html.text("Clear completed")]))]))]))]));
-   });
-   var initialModel = {todos: _U.list([{title: "The first todo",completed: true,editing: false,identifier: 1}])
-                      ,todo: _U.update(newTodo,{identifier: 2})
-                      ,filter: All
-                      ,nextIdentifier: 3};
-   var storageMailbox = $Signal.mailbox(encodeJson(initialModel));
-   var sendToStorageMailbox = function (model) {
-      return A2($Effects.map,$Basics.always(NoOp),$Effects.task(A2($Signal.send,storageMailbox.address,encodeJson(model))));
-   };
-   var update = F2(function (action,model) {
-      var _p5 = action;
-      switch (_p5.ctor)
-      {case "Add": var newModel = _U.update(model,
-           {todos: A2($List._op["::"],model.todo,model.todos)
-           ,todo: _U.update(newTodo,{identifier: model.nextIdentifier})
-           ,nextIdentifier: model.nextIdentifier + 1});
-           return {ctor: "_Tuple2",_0: newModel,_1: sendToStorageMailbox(newModel)};
-         case "Clear": var newModel = _U.update(model,{todos: A2($List.filter,function (todo) {    return _U.eq(todo.completed,false);},model.todos)});
-           return {ctor: "_Tuple2",_0: newModel,_1: sendToStorageMailbox(newModel)};
-         case "Complete": var _p6 = _p5._0;
-           var updateTodo = function (thisTodo) {    return _U.eq(thisTodo.identifier,_p6.identifier) ? _U.update(_p6,{completed: true}) : thisTodo;};
-           var newModel = _U.update(model,{todos: A2($List.map,updateTodo,model.todos)});
-           return {ctor: "_Tuple2",_0: newModel,_1: sendToStorageMailbox(newModel)};
-         case "Uncomplete": var _p7 = _p5._0;
-           var updateTodo = function (thisTodo) {    return _U.eq(thisTodo.identifier,_p7.identifier) ? _U.update(_p7,{completed: false}) : thisTodo;};
-           var newModel = _U.update(model,{todos: A2($List.map,updateTodo,model.todos)});
-           return {ctor: "_Tuple2",_0: newModel,_1: sendToStorageMailbox(newModel)};
-         case "Delete": var newModel = _U.update(model,
-           {todos: A2($List.filter,function (mappedTodo) {    return !_U.eq(_p5._0.identifier,mappedTodo.identifier);},model.todos)});
-           return {ctor: "_Tuple2",_0: newModel,_1: sendToStorageMailbox(newModel)};
-         case "Filter": var newModel = _U.update(model,{filter: _p5._0});
-           return {ctor: "_Tuple2",_0: newModel,_1: sendToStorageMailbox(newModel)};
-         case "UpdateTitle": var todo = model.todo;
-           var updatedTodo = _U.update(todo,{title: _p5._0});
-           return {ctor: "_Tuple2",_0: _U.update(model,{todo: updatedTodo}),_1: $Effects.none};
-         case "SetModel": return {ctor: "_Tuple2",_0: _p5._0,_1: $Effects.none};
-         default: return {ctor: "_Tuple2",_0: model,_1: $Effects.none};}
-   });
-   var storage = Elm.Native.Port.make(_elm).outboundSignal("storage",function (v) {    return v;},storageMailbox.signal);
-   var filterStateDecoder = function () {
-      var decodeToFilterState = function (string) {
-         var _p8 = string;
-         switch (_p8)
-         {case "All": return $Result.Ok(All);
-            case "Active": return $Result.Ok(Active);
-            case "Completed": return $Result.Ok(Completed);
-            default: return $Result.Err(A2($Basics._op["++"],"Not a vaild FilterState: ",string));}
-      };
-      return A2($Json$Decode.customDecoder,$Json$Decode.string,decodeToFilterState);
-   }();
-   var List = function (a) {    return {ctor: "List",_0: a};};
-   var Todo = F4(function (a,b,c,d) {    return {title: a,completed: b,editing: c,identifier: d};});
-   var todoDecoder = A5($Json$Decode.object4,
-   Todo,
-   A2($Json$Decode._op[":="],"title",$Json$Decode.string),
-   A2($Json$Decode._op[":="],"completed",$Json$Decode.bool),
-   A2($Json$Decode._op[":="],"editing",$Json$Decode.bool),
-   A2($Json$Decode._op[":="],"identifier",$Json$Decode.$int));
-   var modelDecoder = A5($Json$Decode.object4,
-   Model,
-   A2($Json$Decode._op[":="],"todos",$Json$Decode.list(todoDecoder)),
-   A2($Json$Decode._op[":="],"todo",todoDecoder),
-   A2($Json$Decode._op[":="],"filter",filterStateDecoder),
-   A2($Json$Decode._op[":="],"nextIdentifier",$Json$Decode.$int));
-   var decodeModel = function (modelJson) {    return A2($Json$Decode.decodeValue,modelDecoder,modelJson);};
-   var mapStorageInput = function (modelJson) {
-      var _p9 = decodeModel(modelJson);
-      if (_p9.ctor === "Ok") {
-            return SetModel(_p9._0);
-         } else {
-            return NoOp;
-         }
-   };
-   var app = $StartApp.start({init: {ctor: "_Tuple2",_0: initialModel,_1: $Effects.none}
-                             ,update: update
-                             ,view: view
-                             ,inputs: _U.list([A2($Signal.map,mapStorageInput,storageInput)])});
+   var app = $StartApp.start({init: A2($RandomGifPair.init,"funny cats","funny dogs")
+                             ,update: $RandomGifPair.update
+                             ,view: $RandomGifPair.view
+                             ,inputs: _U.list([])});
    var main = app.html;
    var tasks = Elm.Native.Task.make(_elm).performSignal("tasks",app.tasks);
-   return _elm.Main.values = {_op: _op
-                             ,Todo: Todo
-                             ,List: List
-                             ,All: All
-                             ,Active: Active
-                             ,Completed: Completed
-                             ,Model: Model
-                             ,NoOp: NoOp
-                             ,Add: Add
-                             ,Clear: Clear
-                             ,Complete: Complete
-                             ,Uncomplete: Uncomplete
-                             ,Delete: Delete
-                             ,UpdateTitle: UpdateTitle
-                             ,Filter: Filter
-                             ,SetModel: SetModel
-                             ,filterItemView: filterItemView
-                             ,filteredTodos: filteredTodos
-                             ,update: update
-                             ,css: css
-                             ,todoView: todoView
-                             ,handleKeyPress: handleKeyPress
-                             ,view: view
-                             ,newTodo: newTodo
-                             ,initialModel: initialModel
-                             ,app: app
-                             ,main: main
-                             ,encodeJson: encodeJson
-                             ,encodeTodo: encodeTodo
-                             ,encodeFilterState: encodeFilterState
-                             ,mapStorageInput: mapStorageInput
-                             ,decodeModel: decodeModel
-                             ,modelDecoder: modelDecoder
-                             ,todoDecoder: todoDecoder
-                             ,filterStateDecoder: filterStateDecoder
-                             ,storageMailbox: storageMailbox
-                             ,sendToStorageMailbox: sendToStorageMailbox};
+   return _elm.Main.values = {_op: _op,app: app,main: main};
 };

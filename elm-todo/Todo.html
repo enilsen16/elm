@@ -1,0 +1,28 @@
+<html>
+
+<head>
+
+    <body>
+        <script type="text/javascript" src="elm.js"></script>
+        <script>
+            var currentModel = localStorage.getItem("todo");
+            if (currentModel !== null) {
+                var app = Elm.fullscreen(Elm.Main, {
+                    storageInput: JSON.parse(currentModel)
+                });
+                app.ports.storageInput.send(JSON.parse(currentModel));
+            } else {
+                localStorage.clear();
+                var app = Elm.fullscreen(Elm.Main, {
+                    storageInput: 0
+                });
+            }
+            window.app = app;
+            app.ports.storage.subscribe(function(data) {
+                localStorage.setItem("todo", JSON.stringify(data));
+            });
+        </script>
+    </body>
+</head>
+
+</html>
