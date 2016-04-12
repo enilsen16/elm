@@ -10531,7 +10531,7 @@ Elm.Counter.make = function (_elm) {
    var app = $StartApp.start({init: {ctor: "_Tuple2",_0: initialModel,_1: $Effects.none}
                              ,update: update
                              ,view: view
-                             ,inputs: _U.list([A2($Signal.map,mapJsAction,jsActions)])});
+                             ,inputs: _U.list([A2($Signal.map,mapJsAction,jsActions),A2($Signal.map,mapStorageInput,storageInput)])});
    var main = app.html;
    var tasks = Elm.Native.Task.make(_elm).performSignal("tasks",app.tasks);
    var Model = F3(function (a,b,c) {    return {count: a,increment: b,decrement: c};});

@@ -9,12 +9,10 @@
     <script>
         var currentModel = localStorage.getItem("counter");
         if (currentModel !== null) {
-            console.log(currentModel);
             var app = Elm.fullscreen(Elm.Counter, {
                 jsActions: 0,
                 storageInput: JSON.parse(currentModel)
             })
-            console.log(app);
             app.ports.storageInput.send(JSON.parse(currentModel));
         } else {
             localStorage.clear()

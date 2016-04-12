@@ -87,6 +87,7 @@ app =
     , view = view
     , inputs =
         [ Signal.map mapJsAction jsActions
+        , Signal.map mapStorageInput storageInput
         ]
     }
 
