@@ -8,16 +8,20 @@ import Mouse
 
 main : Signal Element
 main =
-  Signal.map squares Mouse.position
+  Signal.map shapes Mouse.position
 
 
-squares : ( Int, Int ) -> Element
-squares ( x, y ) =
+shapes : ( Int, Int ) -> Element
+shapes ( x, y ) =
   let
     theGroup =
       group
         [ move ( 0, -55 ) blueSquare
         , move ( 0, 55 ) redSquare
+        , move ( -110, -55 ) blueCircle
+        , move ( -110, 55 ) redCircle
+        , move ( 110, -55 ) blueHexagon
+        , move ( 110, 55 ) redPentagon
         ]
 
     originGroup =
@@ -29,16 +33,38 @@ squares ( x, y ) =
     collage 800 800 [ movedGroup ]
 
 
+blueCircle : Form
+blueCircle =
+  filled blue circle
+
+
+redCircle : Form
+redCircle =
+  filled red circle
+
+blueHexagon : Form
+blueHexagon =
+  filled blue (ngon 6 50)
+
+redPentagon : Form
+redPentagon =
+  filled red (ngon 5 50)
+
 blueSquare : Form
 blueSquare =
-  traced (dashed blue) square
+  outlined (dashed blue) square
 
 
 redSquare : Form
 redSquare =
-  traced (solid red) square
+  outlined (solid red) square
 
 
-square : Path
+square : Shape
 square =
-  path [ ( 50, 50 ), ( 50, -50 ), ( -50, -50 ), ( -50, 50 ), ( 50, 50 ) ]
+  Graphics.Collage.square 100
+
+
+circle : Shape
+circle =
+  Graphics.Collage.circle 50
